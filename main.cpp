@@ -1,139 +1,243 @@
-#include <stdio.h>
+#include <iostream>
 #include <vector>
 
+typedef unsigned uint;
+typedef std::vector<int> arg;
+
+typedef unsigned char byte;
+typedef unsigned short word;
+typedef unsigned int dword;
+
 typedef struct {
-	char* ptr;
-	int len;
-} word;
+	char * ptr;
+	uint len;
+} strpart;
 
-word currcmd;
-std::vector<word> args;
-char obuf[1024];
-int pos = 0;
+enum atypes {
+	A_INT = 1,
+	A_STR = 2
+};
 
-#define skipspaces(buf) if(*buf == ' ' || *buf == '\t') { while(*++buf == ' ' || *buf == '\t'); }
+typedef struct {
+	atypes type;
+	void * a;
+} args_t;
 
-void die(const char* ptr) {
-	fprintf(stderr, "%s\n", ptr);
-	exit(1);
-}
+enum ctypes {
+	C_DECLARE = 1
+};
 
-int convert16(word w)
+enum stypes {
+	S_BYTE = 1,
+	S_WORD = 2,
+	S_DWORD = 4
+};
+
+typedef struct {
+	ctypes type;
+	stypes size;
+	args_t args;
+} command_t;
+
+bool cstr(strpart s, const char* c)
 {
-	int res = 0;
-	for (int i = 0; i < w.len; i++) {
-		if ('0' <= w.ptr[i] && w.ptr[i] <= '9')
-			res = res * 16 + w.ptr[i] - '0';
-		else if ('a' <= w.ptr[i] && w.ptr[i] <= 'f')
-			res = res * 16 + w.ptr[i] - 'a' + 10;
-		else if ('A' <= w.ptr[i] && w.ptr[i] <= 'F')
-			res = res * 16 + w.ptr[i] - 'A' + 10;
-		else die("Not correct number");
-	}
-	return res;
-}
-
-int convert10(word w)
-{
-	int res = 0;
-	for (int i = 0; i < w.len; i++) {
-		if ('0' <= w.ptr[i] && w.ptr[i] <= '9')
-			res = res * 10 + w.ptr[i] - '0';
-		else die("Not correct number");
-	}
-	return res;
-}
-
-bool cmpstr(char * s1, const char * s2, int len) 
-{
-	while (len--)
-		if (*s1++ != *s2++)
+	while (*c != 0)
+		if (*s.ptr++ != *c++)
 			return false;
 	return true;
 }
 
-void invoke(char* buf)
-{
-	skipspaces(buf);
-	if (*buf == '\n') return;
-	currcmd.ptr = buf;
-	currcmd.len = 0;
-	while (*buf++ != ' ') currcmd.len++;
+#define NEG 1
+#define HEX 2
+#define OCT 4
+#define BIN 8
 
-	word arg;
-	skipspaces(buf);
-	while (*buf != '\n') {
-		arg.ptr = buf;
-		arg.len = 0;
-		while (*buf != '\n' && *buf != ',' && *buf != ' ' && *buf != '\t' && *buf != '|') {
-			arg.len++;
-			buf++;
-		}
-		if (*buf == ',') buf++;
-		args.push_back(arg);
-		skipspaces(buf);
+int toint(strpart s)
+{
+	int flag = 0;
+
+	if (*s.ptr == '-') {
+		flag |= NEG;
+		s.ptr++;
+		s.len--;
 	}
+
+	if (*s.ptr == '0') {
+		flag |= OCT;
+		s.ptr++;
+		s.len--;
+		if (*s.ptr == 'x' || *s.ptr == 'X') {
+			flag |= HEX;
+			s.ptr++;
+			s.len--;
+		}
+	}
+
+	if (*(s.ptr + s.len - 1) == 'b' && !(flag & HEX)) {
+		flag |= BIN;
+		s.len--;
+	}
+
+	int i = 0;
+
+	while (s.len--) {
+		if (flag & BIN) i = i * 2 + *s.ptr - '0';
+		else if (flag & HEX) {
+			i = i * 16 + *s.ptr;
+			if (*s.ptr >= '0' && *s.ptr <= '9')
+				i -= '0' ;
+			else if (*s.ptr >= 'a' && *s.ptr <= 'z')
+				i -= 'a' - 10;
+			else
+				i -= 'A' - 10;
+		}
+		else if (flag & OCT)
+			i = i * 8 + *s.ptr - '0';
+		else // DEC
+			i = i * 10 + *s.ptr - '0';
+		s.ptr++;
+	}
+
+	if (flag & NEG) i = -i;
+	return i;
 }
 
-void convert_args(void)
+int compile_command(command_t c, byte * buf)
 {
-	for (int i = 0; i < (int)args.size(); i++) {
-		if (args[i].ptr[0] == '0' && args[i].ptr[1] == 'x') {
-			args[i].ptr += 2;
-			args[i].len -= 2;
-			args[i].len = convert16(args[i]);
-			args[i].ptr = NULL;
+	uint i = 0;
+	strpart s;
+	arg a;
+	byte * b = buf;
+
+	switch (c.type)
+	{
+	case C_DECLARE:
+		switch (c.size)
+		{
+		case S_BYTE:
+			if (c.args.type == A_STR) {
+				s = *(strpart*)c.args.a;
+				while (s.len--) {
+					*b++ = *s.ptr++;
+					i++;
+				}
+				break;
+			}
+			a = *(arg*)c.args.a;
+			for (i = 0; i < a.size(); i++) {
+				*(byte*)b++ = (byte)a[i];
+			}
+			break;
+		case S_WORD:
+			a = *(arg*)c.args.a;
+			for (i = 0; i < a.size(); i++) {
+				*(word*)b = (word)a[i];
+				b += 2;
+			}
+			break;
+		case S_DWORD:
+			a = *(arg*)c.args.a;
+			for (i = 0; i < a.size(); i++) {
+				*(dword*)b = (dword)a[i];
+				b += 4;
+			}
+			break;
 		}
-		else {
-			args[i].len = convert10(args[i]);
-			args[i].ptr = NULL;
-		}
+		break;
 	}
+	return b - buf;
 }
 
-void apply(char* cmd)
-{
-	invoke(cmd);
-	convert_args();
+#define skip(x) while(*x == ' ' || *x == '\t') { x++; }
 
-	if (cmpstr(currcmd.ptr, ".byte", currcmd.len)) {
-		for (int i = 0; i < args.size(); i++) {
-			*(char*)(&obuf[0] + pos) = (char)args[i].len;
-			pos++;
-		}
+int compile_str(char * cmd, byte * buf)
+{
+
+	skip(cmd);
+	
+	strpart s;
+	command_t c;
+	arg a;
+	s.len = 0;
+	s.ptr = cmd;
+
+	if (cstr(s, ".byte")) {
+		c.type = C_DECLARE;
+		c.size = S_BYTE;
+		c.args.type = A_INT;
 	}
-	else if (cmpstr(currcmd.ptr, ".word", currcmd.len)) {
-		for (int i = 0; i < args.size(); i++) {
-			*(short*)(&obuf[0] + pos) = (short)args[i].len;
-			pos += 2;
-		}
+	else if (cstr(s, ".word")) {
+		c.type = C_DECLARE;
+		c.size = S_WORD;
+		c.args.type = A_INT;
 	}
-	else if (cmpstr(currcmd.ptr, ".dword", currcmd.len)) {
-		for (int i = 0; i < args.size(); i++) {
-			*(int*)(&obuf[0] + pos) = (int)args[i].len;
-			pos += 4;
-		}
+	else if (cstr(s, ".dword")) {
+		c.type = C_DECLARE;
+		c.size = S_WORD;
+		c.args.type = A_INT;
 	}
+	else if (cstr(s, ".ascii")) {
+		c.type = C_DECLARE;
+		c.size = S_BYTE;
+		c.args.type = A_STR;
+	}
+	else return 0;
+
+	while (*cmd != ' ') cmd++;
+	skip(cmd);
+
+	if (c.args.type == A_STR) {
+		while (*cmd != '"') cmd++;
+		cmd++;
+		s.ptr = cmd;
+		while (*cmd != '"') {
+			cmd++; 
+			s.len++;
+		}
+		c.args.a = &s;
+	}
+	else {
+		while (*cmd != '\n' && *cmd != '|') {
+			s.ptr = cmd;
+			s.len = 0;
+			while (*cmd != ' ' && *cmd != '\t' && *cmd != ',' && *cmd != '\n' && *cmd != '|') {
+				cmd++;
+				s.len++;
+			}
+			skip(cmd);
+			if(*cmd == ',') cmd++;
+			skip(cmd);
+			a.push_back(toint(s));
+		}
+		c.args.a = &a;
+	}
+
+	return compile_command(c, buf);
 }
 
-void getcmd(void)
+#define BUF_SIZ 10
+
+void compiler(char* ptr)
 {
-	args.clear();
-	static char cmd[512];
-	int i;
-	for (i = 0; i < sizeof(cmd); i++) 
-		cmd[i] = 0;
-	for (i = 0; cmd[i - 1] != '\n'; i++) 
-		cmd[i] = getc(stdin);
-	cmd[i + 1] = '\n';
-	apply(cmd);
+	byte buf[BUF_SIZ];
+	byte * b = buf;
+	for (int i = 0; i < BUF_SIZ; i++) buf[i] = 0;
+
+	while (*ptr != 0) {
+		b += compile_str(ptr, b);
+		while (*ptr != '\n') ptr++;
+		ptr++;
+	}
+
+	for (int i = 0; i < BUF_SIZ; i++)
+		printf("%#x ", (unsigned)buf[i]);
+	printf("\n");
+	for (int i = 0; i < BUF_SIZ; i++)
+		printf("%c", buf[i]);
 }
 
 int main(void)
 {
-	printf("rasm compiler\n");
-	while (true) {
-		printf("> ");
-		getcmd();
-	}
+	char* ptr = (char *)".word 0xaa55\n| comment\n\t   .ascii \"string\" | end";
+	compiler(ptr);
 }

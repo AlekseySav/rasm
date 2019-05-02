@@ -1,243 +1,162 @@
-#include <iostream>
-#include <vector>
+#include "vector.h"
+#include "string.h"
 
-typedef unsigned uint;
-typedef std::vector<int> arg;
+typedef struct command {
+    string_t name;
+    vector_t<string_t> args;
+} command_t;
+
+typedef struct define {
+    string_t name;
+    vector_t<string_t> args;
+    vector_t<command_t> src;
+} define_t;
+
 
 typedef unsigned char byte;
 typedef unsigned short word;
-typedef unsigned int dword;
+byte buf[512];
+void * pos = buf;
 
-typedef struct {
-	char * ptr;
-	uint len;
-} strpart;
-
-enum atypes {
-	A_INT = 1,
-	A_STR = 2
-};
-
-typedef struct {
-	atypes type;
-	void * a;
-} args_t;
-
-enum ctypes {
-	C_DECLARE = 1
-};
-
-enum stypes {
-	S_BYTE = 1,
-	S_WORD = 2,
-	S_DWORD = 4
-};
-
-typedef struct {
-	ctypes type;
-	stypes size;
-	args_t args;
-} command_t;
-
-bool cstr(strpart s, const char* c)
-{
-	while (*c != 0)
-		if (*s.ptr++ != *c++)
-			return false;
-	return true;
-}
 
 #define NEG 1
 #define HEX 2
 #define OCT 4
 #define BIN 8
 
-int toint(strpart s)
+int toint(string_t s)
 {
+    char * ptr = s.buf;
+    size_t len = s.len;
+
 	int flag = 0;
 
-	if (*s.ptr == '-') {
+	if (*ptr == '-') {
 		flag |= NEG;
-		s.ptr++;
-		s.len--;
+		ptr++;
+		len--;
 	}
 
-	if (*s.ptr == '0') {
+	if (*ptr == '0') {
 		flag |= OCT;
-		s.ptr++;
-		s.len--;
-		if (*s.ptr == 'x' || *s.ptr == 'X') {
+		ptr++;
+		len--;
+		if (*ptr == 'x' || *ptr == 'X') {
 			flag |= HEX;
-			s.ptr++;
-			s.len--;
+			ptr++;
+			len--;
 		}
 	}
 
-	if (*(s.ptr + s.len - 1) == 'b' && !(flag & HEX)) {
+	if (*(ptr + len - 1) == 'b' && !(flag & HEX)) {
 		flag |= BIN;
-		s.len--;
+		len--;
 	}
 
 	int i = 0;
 
-	while (s.len--) {
-		if (flag & BIN) i = i * 2 + *s.ptr - '0';
+	while (len--) {
+		if (flag & BIN) i = i * 2 + *ptr - '0';
 		else if (flag & HEX) {
-			i = i * 16 + *s.ptr;
-			if (*s.ptr >= '0' && *s.ptr <= '9')
+			i = i * 16 + *ptr;
+			if (*ptr >= '0' && *ptr <= '9')
 				i -= '0' ;
-			else if (*s.ptr >= 'a' && *s.ptr <= 'z')
+			else if (*ptr >= 'a' && *ptr <= 'z')
 				i -= 'a' - 10;
 			else
 				i -= 'A' - 10;
 		}
 		else if (flag & OCT)
-			i = i * 8 + *s.ptr - '0';
+			i = i * 8 + *ptr - '0';
 		else // DEC
-			i = i * 10 + *s.ptr - '0';
-		s.ptr++;
+			i = i * 10 + *ptr - '0';
+		ptr++;
 	}
 
 	if (flag & NEG) i = -i;
 	return i;
 }
 
-int compile_command(command_t c, byte * buf)
+void compile_command(command_t c)
 {
-	uint i = 0;
-	strpart s;
-	arg a;
-	byte * b = buf;
+    static bool is_define = false;
+    static vector_t<define_t> defines = vector_t<define_t>();
+    static define_t curr;
 
-	switch (c.type)
-	{
-	case C_DECLARE:
-		switch (c.size)
-		{
-		case S_BYTE:
-			if (c.args.type == A_STR) {
-				s = *(strpart*)c.args.a;
-				while (s.len--) {
-					*b++ = *s.ptr++;
-					i++;
-				}
-				break;
-			}
-			a = *(arg*)c.args.a;
-			for (i = 0; i < a.size(); i++) {
-				*(byte*)b++ = (byte)a[i];
-			}
-			break;
-		case S_WORD:
-			a = *(arg*)c.args.a;
-			for (i = 0; i < a.size(); i++) {
-				*(word*)b = (word)a[i];
-				b += 2;
-			}
-			break;
-		case S_DWORD:
-			a = *(arg*)c.args.a;
-			for (i = 0; i < a.size(); i++) {
-				*(dword*)b = (dword)a[i];
-				b += 4;
-			}
-			break;
-		}
-		break;
-	}
-	return b - buf;
+    vector_t<string_t> v;
+    if(strcmp(c.name.str(), ".define") == 0) {
+        if(is_define)
+            die("Must end previous define before declare new");
+        is_define = true;
+        curr.args = vector_t<string_t>();
+        curr.src  = vector_t<command_t>();
+        v = c.args[0].split();
+        curr.name = v[0];
+        if(v.len > 1) {
+            curr.args.append(v[1]);
+            if(v.len > 2)
+                die("Trash at the end if line");
+        }
+        for(size_t i = 1; i < c.args.len; i++)
+            curr.args.append(c.args[i]);
+    }
+    else if(strcmp(c.name.str(), ".enddef") == 0) {
+        if(!is_define)
+            die("No define signed");
+        is_define = false;
+        defines.append(curr);
+    }
+    else if(strcmp(c.name.str(), ".const") == 0) {
+        if(is_define)
+            die("const can't be signed in define");
+        v = c.name.split();
+        curr.name = v[1];
+        curr.src = vector_t<command_t>();
+        curr.args = vector_t<string_t>();
+        curr.src.append({ v[2], vector_t<string_t>() });
+        defines.append(curr);
+    }
+    else if(is_define) {
+        curr.src.append(c);
+    }
+    else if(c.name.buf[0] == '.') {
+        if(strcmp(c.name.str(), ".byte")) {
+            for(size_t i = 0; i < c.args.len; i++)
+                *(byte *)pos = (byte)toint(c.args[i]);
+        }
+        else if(strcmp(c.name.str(), ".word")) {
+            for(size_t i = 0; i < c.args.len; i++)
+                *(word *)pos = (word)toint(c.args[i]);
+        }
+    }
 }
 
-#define skip(x) while(*x == ' ' || *x == '\t') { x++; }
-
-int compile_str(char * cmd, byte * buf)
+void compile_line(string_t s, unsigned line)
 {
+    printf("%u: %s\n", line + 1, s.str());
+    vector_t<string_t> v;
+    v = s.remove_trash().split();
+    command_t c;
+    c.name = v[0].remove_trash();
 
-	skip(cmd);
-	
-	strpart s;
-	command_t c;
-	arg a;
-	s.len = 0;
-	s.ptr = cmd;
-
-	if (cstr(s, ".byte")) {
-		c.type = C_DECLARE;
-		c.size = S_BYTE;
-		c.args.type = A_INT;
-	}
-	else if (cstr(s, ".word")) {
-		c.type = C_DECLARE;
-		c.size = S_WORD;
-		c.args.type = A_INT;
-	}
-	else if (cstr(s, ".dword")) {
-		c.type = C_DECLARE;
-		c.size = S_WORD;
-		c.args.type = A_INT;
-	}
-	else if (cstr(s, ".ascii")) {
-		c.type = C_DECLARE;
-		c.size = S_BYTE;
-		c.args.type = A_STR;
-	}
-	else return 0;
-
-	while (*cmd != ' ') cmd++;
-	skip(cmd);
-
-	if (c.args.type == A_STR) {
-		while (*cmd != '"') cmd++;
-		cmd++;
-		s.ptr = cmd;
-		while (*cmd != '"') {
-			cmd++; 
-			s.len++;
-		}
-		c.args.a = &s;
-	}
-	else {
-		while (*cmd != '\n' && *cmd != '|') {
-			s.ptr = cmd;
-			s.len = 0;
-			while (*cmd != ' ' && *cmd != '\t' && *cmd != ',' && *cmd != '\n' && *cmd != '|') {
-				cmd++;
-				s.len++;
-			}
-			skip(cmd);
-			if(*cmd == ',') cmd++;
-			skip(cmd);
-			a.push_back(toint(s));
-		}
-		c.args.a = &a;
-	}
-
-	return compile_command(c, buf);
+    s = s.remove_start(c.name.len);
+    v = s.split(',');
+    for(size_t i = 0; i < v.len; i++)
+        v.set(i, v[i].remove_trash());
+    c.args = v;
+    compile_command(c);
 }
 
-#define BUF_SIZ 10
-
-void compiler(char* ptr)
+void compile(const char * ptr)
 {
-	byte buf[BUF_SIZ];
-	byte * b = buf;
-	for (int i = 0; i < BUF_SIZ; i++) buf[i] = 0;
-
-	while (*ptr != 0) {
-		b += compile_str(ptr, b);
-		while (*ptr != '\n') ptr++;
-		ptr++;
-	}
-
-	for (int i = 0; i < BUF_SIZ; i++)
-		printf("%#x ", (unsigned)buf[i]);
-	printf("\n");
-	for (int i = 0; i < BUF_SIZ; i++)
-		printf("%c", buf[i]);
+    vector_t<string_t> v;
+    v = string_t(ptr).split('\n');
+    for(size_t i = 0; i < v.len; i++)
+        compile_line(v[i], i);
 }
 
 int main(void)
 {
-	char* ptr = (char *)".word 0xaa55\n| comment\n\t   .ascii \"string\" | end";
-	compiler(ptr);
+    printf("\n");
+    compile(".define mov x, y\n\t.word 0xfeeb\n.enddef\nmov");
 }

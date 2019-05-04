@@ -9,5 +9,5 @@
 test:	| 0
 	square 8
 	square NULL
-	.byte end + test
+	.byte end + test, 9
 end:	| 2+2+1

@@ -26,5 +26,6 @@ void die(const char* ptr);
 
 void compile1(const char* file, const char* of);
 void compile2(const char* file, const char* of);
+void compile3(const char* file, const char* of);
 
 #endif

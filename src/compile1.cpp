@@ -5,6 +5,17 @@
 static char buf[BUF_SIZE];
 static char* bp = buf;
 
+struct define {
+	string name;
+	vector<string> args;
+	vector<string> code;
+};
+
+struct constant {
+	string name;
+	string value;
+};
+
 static bool string_cmp(string s1, string s2)
 {
 	char* p1 = s1.buf, * p2 = s2.buf;
@@ -22,6 +33,7 @@ static void compile_command(string name, string args)
 {
 	static bool isdef = false;
 	static vector<define> defines = vector<define>();
+	static vector<constant> consts = vector<constant>();
 	static vector<bool> ifs;
 	static define d;
 
@@ -38,7 +50,15 @@ static void compile_command(string name, string args)
 		if (!(ifs[ifs.len - 1]))
 			return;
 	
-	if (strcmp(name.str(), ".define") == 0) {
+	if (strcmp(name.str(), ".const") == 0) {
+		if (isdef)
+			die("Cannot sign constant in define");
+		constant c;
+		c.name = args.split()[0];
+		c.value = args.remove_start(c.name.len).remove_trash();
+		consts.add(c);
+	}
+	else if (strcmp(name.str(), ".define") == 0) {
 		if (isdef)
 			die("Tried to sign define before previous ended");
 		isdef = true;
@@ -81,7 +101,7 @@ static void compile_command(string name, string args)
 		ifs.add(true);
 	}
 	else if (isdef)
-		d.code.add(name + " " + args.remove_trash());
+		d.code.add(name + " " + args.remove_trash() + "\n");
 	else {
 		for (i = 0; i < defines.len; i++)
 			if (defines[i].name == name) {
@@ -105,7 +125,7 @@ static void compile_command(string name, string args)
 								out += v[k];
 								j += d.args[k].len;
 							}
-						if(j < s.len)
+						if (j < s.len)
 							out.append(s[j]);
 					}
 
@@ -114,9 +134,8 @@ static void compile_command(string name, string args)
 							die("Exceeded max length of command");
 						*bp++ = out[j];
 					}
-					*bp++ = '\n';
 				}
-				return;
+				goto add_consts;
 			}
 
 		// not defined - copy
@@ -132,6 +151,25 @@ static void compile_command(string name, string args)
 			*bp++ = args[i];
 		}
 		*bp++ = '\n';
+
+	add_consts:
+		s = string(buf, bp - buf);
+		bp = buf;
+		for (i = 0; i < s.len; i++) {
+			for (size_t j = 0; j < consts.len; j++)
+				if (string_cmp(s.buf + i, consts[j].name)) {
+					for (size_t k = 0; k < consts[j].value.len; k++) {
+						*bp++ = consts[j].value[k];
+						if (bp - buf >= BUF_SIZE)
+							die("Exceeded max length of command");
+					}
+					i += consts[j].name.len;
+					if (i >= s.len) break;
+				}
+			*bp++ = s[i];
+			if (bp - buf >= BUF_SIZE)
+				die("Exceeded max length of command");
+		}
 	}
 }
 
@@ -139,13 +177,11 @@ static void compile_line(string s, unsigned ln)
 {
 	line = ln;
 	printf("%s\n", s.str());
-	if (s.remove_trash().len == 0) return;
+	if ((s = s.remove_trash()).len == 0) return;
 
-	vector<string> v;
 	string name;
 
 	pos = 0;
-	s = s.remove_trash();
 	name = s.split()[0];
 
 	pos += name.len;
@@ -155,23 +191,24 @@ static void compile_line(string s, unsigned ln)
 	compile_command(name, s);
 }
 
-void compile1(const char* file)
+void compile1(const char* file, const char* of)
 {
+	part = 1;
 	string s = string();
 	char ibuf = '\0';
 	unsigned line = 1;
 
 	FILE* f = fopen(file, "rt");
-	FILE* f1 = fopen("_pre_compiled.s", "wt+");
+	FILE* f1 = fopen(of, "wt+");
 	while (fread(&ibuf, 1, 1, f) != 0) {
 		if (ibuf != '\n')
 			s.append(ibuf);
 		else {
+			for (size_t i = 0; i < BUF_SIZE; i++)
+				buf[i] = 0;
 			compile_line(s, line);
 			fwrite(buf, 1, bp - buf, f1);
 			bp = buf;
-			for (size_t i = 0; i < BUF_SIZE; i++)
-				buf[i] = 0;
 			line++;
 			s = "";
 		}

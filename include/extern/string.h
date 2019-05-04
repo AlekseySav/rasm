@@ -110,9 +110,10 @@ struct string
 			else return s;
 			pos++;
 		}
-		memcpy(s.buf, ptr, s.len);
+		if(s.buf != ptr)
+			memcpy(s.buf, ptr, s.len);
 
-		ptr = buf + s.len;
+		ptr = s.buf + s.len - 1;
 		while (*ptr == ' ' || *ptr == '\t') {
 			ptr--;
 			if (s.len != 0)
@@ -145,6 +146,11 @@ struct string
 		len++;
 	}
 
+	void clear()
+	{
+		for (size_t i = 0; i < STRING_SIZE; i++)
+			buf[i] = 0;
+	}
 };
 
 void vremove_trash(vector<string>* v);

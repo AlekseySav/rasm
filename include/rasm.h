@@ -12,9 +12,10 @@
 #define is_symbol(x) ( \
 					x >= 'a' && x <= 'z' || \
 					x >= 'A' && x <= 'Z' || \
-					x >= '0' && x >= '9' || \
+					x >= '0' && x <= '9' || \
 					x == '.' || x == '_')
 
+extern unsigned part;
 extern unsigned line;
 extern unsigned pos;
 
@@ -23,12 +24,7 @@ void die(const char* ptr);
 #include "extern/vector.h"
 #include "extern/string.h"
 
-struct define {
-	string name;
-	vector<string> args;
-	vector<string> code;
-};
-
-void compile1(const char* file);
+void compile1(const char* file, const char* of);
+void compile2(const char* file, const char* of);
 
 #endif

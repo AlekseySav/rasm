@@ -1,13 +1,18 @@
 #ifndef _RASM_H_
 #define _RASM_H_
 
-#if defined(_WIN32) || defined(_WIN64)
-#define _CRT_SECURE_NO_WARNINGS "Stupid Windows..."
-#endif
+#define FLAG_NOCLEAR 	1
+#define FLAG_LOG		2
+#define FLAG_VERSION	4
+
+extern int flags;
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <memory>
+#include <memory.h>
+#include <fstream>
+#include <iostream>
 
 #define is_symbol(x) ( \
 					x >= 'a' && x <= 'z' || \

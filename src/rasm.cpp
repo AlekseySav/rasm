@@ -2,7 +2,9 @@
 
 unsigned line = -1;
 unsigned pos = -1;
-extern unsigned part = -1;
+unsigned part = -1;
+
+int flags = 0;
 
 void die(const char* ptr)
 {

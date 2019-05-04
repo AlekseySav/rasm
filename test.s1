@@ -1,5 +1,5 @@
 test: 
-.word 8 * 8
-.word 0 * 0
-.byte end + test, 9
+square 8
+square 0
+.byte end + test, 0xff
 end: 

@@ -2,9 +2,9 @@
 
 #define BUF_SIZE 1024
 
-char buf[BUF_SIZE];
-char* bp = buf;
-unsigned prev = 0;
+static char buf[BUF_SIZE];
+static char* bp = buf;
+static unsigned prev = 0;
 
 struct command {
 	string name;
@@ -16,15 +16,15 @@ struct pointer {
 	unsigned value;
 };
 
-vector<pointer> pointers = vector<pointer>();
-bool part1 = true;
+static vector<pointer> pointers = vector<pointer>();
+static bool part1 = true;
 
 #define NEG 1
 #define HEX 2
 #define OCT 4
 #define BIN 8
 
-int toint(string s)
+static int toint(string s)
 {
 	for (size_t i = 0; i < pointers.len; i++)
 		if (s == pointers[i].name)
@@ -81,7 +81,7 @@ int toint(string s)
 	return i;
 }
 
-void bpint(string s)
+static void bpint(string s)
 {
 	char* ptr = s.buf;
 	size_t len = 0;
@@ -173,7 +173,9 @@ static void compile_command(command c)
 static void compile_line(string s, unsigned ln)
 {
 	line = ln;
-	printf("%s\n", s.str());
+	
+	if(flags & FLAG_LOG)
+		printf("%s\n", s.str());
 
 	string name;
 
@@ -212,7 +214,9 @@ void compile2(const char* file, const char* of)
 		}
 	}
 	fclose(f);
-	printf("\n+++\n\n");
+	
+	if(flags & FLAG_LOG)
+		printf("\n+++\n\n");
 
 	s = string();
 	ibuf = '\0';

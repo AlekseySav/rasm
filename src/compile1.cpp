@@ -176,7 +176,8 @@ static void compile_command(string name, string args)
 static void compile_line(string s, unsigned ln)
 {
 	line = ln;
-	printf("%s\n", s.str());
+	if(flags & FLAG_LOG)
+		printf("%s\n", s.str());
 	if ((s = s.remove_trash()).len == 0) return;
 
 	string name;

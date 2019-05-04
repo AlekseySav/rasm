@@ -4,10 +4,10 @@
 typedef unsigned char byte;
 typedef unsigned short word;
 
-byte buf[BUF_SIZE];
-byte* bp = buf;
+static byte buf[BUF_SIZE];
+static byte* bp = buf;
 
-unsigned toint(string s)
+static unsigned toint(string s)
 {
 	unsigned res = 0;
 	unsigned i = 0;
@@ -19,10 +19,12 @@ unsigned toint(string s)
 	return res;
 }
 
-void compile_line(string s, unsigned ln)
+static void compile_line(string s, unsigned ln)
 {
 	line = ln;
-	printf("%s\n", s.str());
+	
+	if(flags & FLAG_LOG)
+		printf("%s\n", s.str());
 
 	vector<string> v = s.split();
 	if (v[0].len != 1)
@@ -70,13 +72,4 @@ void compile3(const char* file, const char* of)
 	}
 	fclose(f);
 	fclose(f1);
-
-	f = fopen(of, "rt");
-	unsigned sz = fread(buf, 1, BUF_SIZE, f);
-	fclose(f);
-
-	printf("\n+++\n\n");
-
-	for (unsigned i = 0; i < sz; i++)
-		printf("%u ", (unsigned)buf[i]);
 }

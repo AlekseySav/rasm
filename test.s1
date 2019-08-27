@@ -1,5 +1,0 @@
-test: 
-square 8
-square 0
-.byte end + test, 0xff
-end: 

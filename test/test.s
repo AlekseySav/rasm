@@ -13,7 +13,7 @@
 
 .include "test/inc.s"
 
-.if !declared __included
+.if declared __included
     .error "uncorrect 'include' work"
 .end if
 

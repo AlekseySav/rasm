@@ -7,13 +7,13 @@
 .const _const
 .release _const
 
-.if !declared _const
+.if declared _const
     .error "released const used"
 .end if
 
 .include "test/inc.s"
 
-.if declared __included
+.if !declared __included
     .error "uncorrect 'include' work"
 .end if
 

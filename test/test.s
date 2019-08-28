@@ -4,14 +4,6 @@
     .error "expected null value"
 .end if
 
-.macro sum a, b
-    a + b
-.end sum
-
-.if 4 != sum 2, 2
-    .error "expected 4 (2+2 sum)"
-.end if
-
 .const _const
 .release _const
 

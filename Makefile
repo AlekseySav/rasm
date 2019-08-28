@@ -22,7 +22,7 @@ clean:
 	(cd init; rm -f *.o)
 	(cd src; rm -f *.o)
 
-test:
+do_test:
 	make
 	make clean
 	rasm/rasm test/test.s

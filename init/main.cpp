@@ -46,7 +46,7 @@ _Noreturn static void usage(int code)
     "  --help               display options on screen\n"
     "  -o <file>            set the output file\n"
     "  -Wall                enable all warnings\n"
-    "  -Werror              make all warnings like if they were errors\n"
+    "  -Werror              make all warnings into errors\n"
     );
 
     exit(code);

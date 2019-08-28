@@ -22,6 +22,12 @@ clean:
 	(cd init; rm -f *.o)
 	(cd src; rm -f *.o)
 
+test:
+	make
+	make clean
+	rasm/rasm test/test.s
+	rm rasm/rasm
+
 init/main.o: init/main.cpp
 
 src/errno.o: src/errno.cpp

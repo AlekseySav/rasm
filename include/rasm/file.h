@@ -1,18 +1,23 @@
-#ifndef _FILE_H_
-#define _FILE_H_
+#ifndef _RASM_FILE_H_
+#define _RASM_FILE_H_
 
-int & line(void);
-int & column(void);
-const char * filename(void);
+struct file_line {
+    const char * name;
+    int row, col;
+};
 
-// add token array as file
-void append_tokens(std::vector<token> tokens, bool is_macro);
-token pop_token(void);
+struct file_line rf_getline(void);
+void rf_setline(struct file_line nl);
 
-void ropen(const char * filename);
-int rclose(void);   // returns opened files count
+void rf_init(void);
+void rf_shutdown(void);
 
-char rgetc(void);
-void rungetc(char c);
+void add_path(const char * inc);
+
+void rf_open(const char * file);
+void rf_close(void);
+
+char rf_getc(void);
+void rf_ungetc(char c);
 
 #endif

@@ -11,7 +11,7 @@
 static size_t buf_round(size_t n)
 {
     if(n == 0)
-        return n;
+        return 0;
 
     int res = 1;
     while(res <= n)
@@ -40,8 +40,8 @@ buffer * buf_create(const char * src)
     assert(b);
 
     b->len = strlen(src);
+    buf_realloc(b, b->len);
     if(b->len) {
-        buf_realloc(b, b->len);
         strcpy(b->buf, src);
     }
     return b;

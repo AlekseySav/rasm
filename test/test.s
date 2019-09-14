@@ -1,1 +1,5 @@
-.const null 0
+'\n'
+'\033'
+"fjcdsklvn jzvn sk"
+,
+u

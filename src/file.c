@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -111,8 +112,6 @@ void rf_close(void)
     free(f);
 }
 
-#define is_space(c) (c == ' ' || c == '\t' || c == '\v' || c == '\f')
-
 char rf_getc(void)
 {
     char c;
@@ -121,7 +120,7 @@ char rf_getc(void)
     
     c = (char)getc(curr_file->ptr);
 
-    if(is_space(c) && is_space(curr_file->prev))
+    if(isspace(c) && isspace(curr_file->prev))
         c = rf_getc();          // nonspace char
 
     if(c == ';')
@@ -133,6 +132,9 @@ char rf_getc(void)
     }
     else curr_file->c++;
 
+    if(isupper(c))
+        c = tolower(c);
+
     curr_file->prev = c;
     return c;
 }
@@ -141,6 +143,8 @@ void rf_ungetc(char c)
 {
     if(c == EOF || curr_file->prev == EOF)
         return;
+
+    curr_file->prev = 0;
 
     ungetc((int)c, curr_file->ptr);
     if(c == '\n') {

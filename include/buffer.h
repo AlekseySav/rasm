@@ -9,7 +9,7 @@ typedef struct {
 
 #define buf_len(b) ((b)->len)
 #define buf_tail(b) (buf_get(b, buf_len(b) - 1))
-#define buf_nil(b) (buf_create(""))
+#define buf_nil() (buf_create(""))
 #define buf_release(b) (buf_free(b), ((b) = NULL))  // always returns NULL
 
 buffer * buf_create(const char * src);

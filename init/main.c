@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <buffer.h>
 #include <error.h>
@@ -7,6 +8,7 @@
 #include <vector.h>
 
 #include <rasm/file.h>
+#include <rasm/token.h>
 
 static void usage(void)
 {
@@ -49,6 +51,16 @@ int main(int argc, char * argv[])
         panic("no input files");
 
     rf_open(file);
+
+    token * t;
+
+    while((t = read_token())->type != TEOF) {
+        if(t->type == TEOL) printf("\n");
+        else printf("%s", print_token(t));
+        tok_release(t);
+    }
+    tok_release(t);
+
     rf_close();
 
     rf_shutdown();

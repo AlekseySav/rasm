@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <bool.h>
 #include <buffer.h>
 #include <error.h>
 #include <flags.h>
@@ -9,6 +10,7 @@
 
 #include <rasm/file.h>
 #include <rasm/token.h>
+#include <rasm/preprocess.h>
 
 static void usage(void)
 {
@@ -27,6 +29,7 @@ int main(int argc, char * argv[])
 {
     setprogname(argv[0]);
     rf_init();
+    pr_init();
 
     char * file = NULL;
     
@@ -57,16 +60,20 @@ int main(int argc, char * argv[])
 
     token * t;
 
-    while((t = read_token())->type != TEOF) {
-        if(FLAG_CHECK(_E)) {
+    while((t = read_token(true))->type != TEOF) {
+        if(t->type & TPREP)
+            preprocess(t);
+        else if(FLAG_CHECK(_E)) {
             if(t->type == TEOL) printf("\n");
             else printf("%s ", print_token(t));
-        };
+        }
         tok_release(t);
     }
     tok_release(t);
 
     rf_close();
+
+    pr_shutdown();
     rf_shutdown();
     return 0;
 }

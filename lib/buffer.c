@@ -96,6 +96,19 @@ const char * buf_cstr(buffer * b)
     return (const char *)b->buf;
 }
 
+buffer * buf_copy(buffer * src)
+{
+    assert(src);
+    assert(src->buf);
+
+    buffer * b = malloc(sizeof(buffer));
+    b->len = src->len;
+    b->bufsz = src->bufsz;
+    b->buf = malloc(b->bufsz);
+    memcpy(b->buf, src->buf, b->len);
+    return b;
+}
+
 void buf_append(buffer * dest, const char * src)
 {
     assert(dest);

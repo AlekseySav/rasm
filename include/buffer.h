@@ -22,6 +22,7 @@ void buf_set(buffer * b, size_t index, char value);
 char buf_get(buffer * b, size_t index);
 
 const char * buf_cstr(buffer * b);
+buffer * buf_copy(buffer * src);
 
 void buf_append(buffer * dest, const char * src);
 

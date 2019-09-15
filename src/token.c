@@ -1,11 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <bool.h>
 #include <buffer.h>
 #include <error.h>
 #include <rasm/file.h>
 #include <rasm/token.h>
+#include <rasm/preprocess.h>
 
 token * tok_nil(void)
 {
@@ -13,7 +15,7 @@ token * tok_nil(void)
     return t;
 }
 
-void tok_release(token * t)
+void tok_free(token * t)
 {
     if(t == NULL)
         return;
@@ -21,6 +23,21 @@ void tok_release(token * t)
     if(t->type == TNULL || t->type == TSTR)
         buf_release(t->buf);        
     free(t);
+}
+
+token * tok_copy(token * src)
+{
+    token * t = tok_nil();
+    t->type = src->type;
+    if(t->type == TSTR || t->type == TCHAR || t->type == TNULL)
+        if(src->buf)
+            t->buf = buf_copy(src->buf);
+    else if(t->type == TOP) {
+        t->op[0] = src->op[0];
+        t->op[1] = src->op[1];
+    }
+    t->pos = src->pos;
+    return t;
 }
 
 static const char * print_undef = "{???}";
@@ -40,8 +57,7 @@ const char * print_token(token * t)
         case TEOL:
             return print_eol;
         case TOP:
-            t->op[2] = 0;
-            return t->op;
+            return t->op;   // t->op[2] must be zero
         case TSTR:
         case TCHAR:
             return buf_cstr(t->buf);
@@ -96,53 +112,69 @@ static char to_char(token * t)
         errorf(t->pos.name, t->pos.row, t->pos.col, err);
 }
 
-token * read_token(void)
+token * read_token(bool preprocess)
 {
     char c;
-    token * t = tok_nil();
+    token * t = token_buffer();
+    if(t == NULL) {
+        t = tok_nil();
 
-    while((c = rf_getc()) == ' ');
+        while((c = rf_getc()) == ' ');
 
-    t->pos = rf_getline();
+        t->pos = rf_getline();
 
-    if(c == EOF) t->type = TEOF;
-    else if(c == '\n') t->type = TEOL;
-    else if(c == '\'' || c == '"')
-        t->type = TSTR;
-    else if(is_op(c)) {
-        t->type = TOP;
-        t->op[0] = c;
-        c = rf_getc();
-        if(is_op(c))
-            t->op[1] = c;
-        else {
-            t->op[1] = '\0';
+        if(c == EOF) t->type = TEOF;
+        else if(c == '\n') t->type = TEOL;
+        else if(c == '\'' || c == '"')
+            t->type = TSTR;
+        else if(is_op(c)) {
+            t->type = TOP;
+            t->op[0] = c;
+            c = rf_getc();
+            if(is_op(c))
+                t->op[1] = c;
+            else {
+                t->op[1] = '\0';
+                rf_ungetc(c);
+            }
+        }
+
+        if(t->type == TSTR) {
+            t->buf = buf_nil();
+            char e = c;
+            while(c != EOF) {
+                buf_push(t->buf, c);
+                if((c = rf_getc()) == e) break;
+            }
+            if(c == EOF)
+                errorf(t->pos.name, t->pos.row, t->pos.col, "expected closing comma");
+            buf_push(t->buf, c);
+            
+            if(c == '\'')
+                t->type = TCHAR;
+        }
+
+        else if(t->type == TNULL) {
+            t->buf = buf_nil();
+            while(is_char(c)) {
+                buf_push(t->buf, c);
+                c = rf_getc();
+            }
             rf_ungetc(c);
         }
     }
 
-    if(t->type == TSTR) {
-        t->buf = buf_nil();
-        char e = c;
-        while(c != EOF) {
-            buf_push(t->buf, c);
-            if((c = rf_getc()) == e) break;
-        }
-        if(c == EOF)
-            errorf(t->pos.name, t->pos.row, t->pos.col, "expected closing comma");
-        buf_push(t->buf, c);
-        
-        if(c == '\'')
-            t->type = TCHAR;
-    }
-
-    else if(t->type == TNULL) {
-        t->buf = buf_nil();
-        while(is_char(c)) {
-            buf_push(t->buf, c);
-            c = rf_getc();
-        }
-        rf_ungetc(c);
+    if(t->type == TNULL) {
+        const char * s = buf_cstr(t->buf);
+        if(strcmp(s, ".macro") == 0)
+            t->type = TMACRO;
+        else if(strcmp(s, ".end") == 0)
+            t->type = TEND;
+            
+        if(t->type != TNULL)
+            buf_release(t->buf);
+        else if(preprocess && is_defined(t))
+            return read_token(preprocess);
     }
     return t;
 }

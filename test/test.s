@@ -1,22 +1,10 @@
-.macro example (arg1), arg2=ds:arg3      ; ( ) , : \n
-    .word 0
+.macro example arg1
+    .word arg1
 .end example
 
-; example (eax), cs:10 + 8
+.macro e2 8, 0
+    8 = 0
+.end e2
 
-; (eax) , cs : 10 + 8
-
-; arg1=eax        ,
-; arg2=cs         :
-; arg3=10 + 8     \n
-
-; example (eax), ax
-
-; ( eax ) , ax
-
-; (
-; arg1=eax    ) ,
-; arg2=ax     \n
-
-; arg3=arg2
-; arg2=ds
+example 7
+e2 0, 7

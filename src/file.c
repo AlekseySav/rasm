@@ -119,12 +119,28 @@ char rf_getc(void)
         return EOF;
     
     c = (char)getc(curr_file->ptr);
+    
+    if(c != '\n' || curr_file->prev == '\n')
+        if(isspace(c))
+            c = ' ';          // nonspace char
 
-    if(isspace(c) && isspace(curr_file->prev))
-        c = rf_getc();          // nonspace char
+    if(c == '\\') {             // skip whitespace
+        curr_file->prev = '\\';
+        c = rf_getc();
+        if(!isspace(c))
+            rf_ungetc(c);
+        else return rf_getc();
+    }
+
+    if(c == EOF && curr_file->prev != '\n') {
+        curr_file->prev = EOF;
+        return '\n';
+    }
 
     if(c == ';')
-        while((c = (char)getc(curr_file->ptr)) != '\n');    // skip comment
+        while((c = (char)getc(curr_file->ptr)) != '\n')
+            if(c == EOF)
+                break;    // skip comment
 
     if(c == '\n') {
         curr_file->c = 0;

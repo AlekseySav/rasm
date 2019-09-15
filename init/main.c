@@ -16,6 +16,7 @@ static void usage(void)
         "\n"
         "options:\n"
         "  --help           display options on screen\n"
+        "  -E               print preprocessed code\n"
         "  -I <path>        add to include path\n"
         "  -nostdinc        disable standard rasm directives\n"
         "  -Wall            enable all warnings\n"
@@ -32,6 +33,8 @@ int main(int argc, char * argv[])
     for(int i = 1; i < argc; i++) {
         if(strcmp(argv[i], "--help") == 0)
             usage();
+        else if(strcmp(argv[i], "-E") == 0)
+            FLAG_ADD(_E);
         else if(strcmp(argv[i], "-I") == 0)
             add_path(argv[++i]);
         else if(strcmp(argv[i], "-nostdinc") == 0)
@@ -55,14 +58,15 @@ int main(int argc, char * argv[])
     token * t;
 
     while((t = read_token())->type != TEOF) {
-        if(t->type == TEOL) printf("\n");
-        else printf("%s", print_token(t));
+        if(FLAG_CHECK(_E)) {
+            if(t->type == TEOL) printf("\n");
+            else printf("%s ", print_token(t));
+        };
         tok_release(t);
     }
     tok_release(t);
 
     rf_close();
-
     rf_shutdown();
     return 0;
 }

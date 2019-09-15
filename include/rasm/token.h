@@ -9,6 +9,7 @@ typedef struct {
     struct file_line pos;
 } token;
 
+#define TUNDEF     -1   // undefined token
 #define TNULL       0
 #define TEOF        1
 #define TEOL        2

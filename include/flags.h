@@ -3,9 +3,10 @@
 
 extern int flags;
 
-#define _nostdinc   1
-#define _Wall       2
-#define _Werror     4
+#define _E          1
+#define _nostdinc   2
+#define _Wall       4
+#define _Werror     8
 
 #define FLAG_CHECK(f)   (flags & f)
 #define FLAG_ADD(f)     (flags |= f)

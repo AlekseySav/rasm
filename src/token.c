@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <bool.h>
 #include <buffer.h>
 #include <error.h>
 #include <rasm/file.h>
@@ -26,7 +27,6 @@ static const char * print_undef = "{???}";
 static const char * print_null = "(null)";
 static const char * print_eof = "(eof)";
 static const char * print_eol = "(new-line)";
-static char print_char[3];
 
 const char * print_token(token * t)
 {
@@ -40,52 +40,17 @@ const char * print_token(token * t)
         case TEOL:
             return print_eol;
         case TOP:
-            return t->op;   // t->op[2] must be zero
+            t->op[2] = 0;
+            return t->op;
         case TSTR:
-            return buf_cstr(t->buf);
         case TCHAR:
-            print_char[0] = '\\';
-            print_char[1] = 0;
-            print_char[2] = 0;
-            if(t->value >= '\0' && t->value <= '\7') {
-                print_char[1] = t->value + '0';
-                return print_char;
-            }
-            switch(t->value) {
-                case '\a':
-                    print_char[1] = 'a';
-                    break;
-                case '\b':
-                    print_char[1] = 'b';
-                    break;
-                case '\e':
-                    print_char[1] = 'e';
-                    break;
-                case '\f':
-                    print_char[1] = 'f';
-                    break;
-                case '\n':
-                    print_char[1] = 'n';
-                    break;
-                case '\r':
-                    print_char[1] = 'r';
-                    break;
-                case '\t':
-                    print_char[1] = 't';
-                    break;
-                case '\v':
-                    print_char[1] = 'v';
-                    break;
-                default:
-                    print_char[0] = t->value;
-                }
-            return (const char *)print_char;
+            return buf_cstr(t->buf);
         default:
             return print_undef;
     }
 }
 
-static int is_op(char c) 
+static bool is_op(char c) 
 {
     return (c == '=' || c == '!' || 
         c == '*' || c == '/' || c == '+' || c == '-' || 
@@ -95,14 +60,14 @@ static int is_op(char c)
         c == '%' || c == ',');
 }
 
-static inline is_char(char c)
+static inline bool is_char(char c)
 {
     return (c >= '0' && c <= '9') ||
         (c >= 'a' && c <= 'z') ||
         (c == '_' || c == '.');
 }
 
-char to_char(token * t)
+static char to_char(token * t)
 {
     const char * err = "invalid character format";
     const char * s = buf_cstr(t->buf);
@@ -150,19 +115,25 @@ token * read_token(void)
         c = rf_getc();
         if(is_op(c))
             t->op[1] = c;
-        else rf_ungetc(c);
+        else {
+            t->op[1] = '\0';
+            rf_ungetc(c);
+        }
     }
 
     if(t->type == TSTR) {
         t->buf = buf_nil();
         char e = c;
-        while((c = rf_getc()) != e)
+        while(c != EOF) {
             buf_push(t->buf, c);
-        if(c == '\'') {
-            t->type = TCHAR;
-            t->value = to_char(t);
-            buf_release(t->buf);
+            if((c = rf_getc()) == e) break;
         }
+        if(c == EOF)
+            errorf(t->pos.name, t->pos.row, t->pos.col, "expected closing comma");
+        buf_push(t->buf, c);
+        
+        if(c == '\'')
+            t->type = TCHAR;
     }
 
     else if(t->type == TNULL) {

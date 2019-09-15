@@ -1,9 +1,11 @@
-#include <stdnoreturn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 
+#include <noreturn.h>
 #include <flags.h>
+
+// #define NO_EXTEND_WRITE
 
 #if !defined(NO_EXTEND_WRITE) && !defined(__linux__)
     #define NO_EXTEND_WRITE

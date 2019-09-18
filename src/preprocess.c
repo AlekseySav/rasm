@@ -174,49 +174,49 @@ token * token_buffer(void)
 #define op_equal(t1, t2) ((t1->type == TEOL && t2->type == TEOL) || \
     ((t1)->op[0] == (t2)->op[0] && (t1)->op[1] == (t2)->op[1]))
 
-static void read_args(macro * m, vector * buf)    // buf is vector<token>
+static void read_args(macro * m)    // buf is vector<token>
 {
     vector * fmt = m->arg_split;
 
-    size_t i;
-    size_t split = 0;
-    vector * v = vec_nil();     // vector<token>
     vector * args = vec_nil();  // vector<vector<token>>
     vector * tochar = vec_nil();    // vector<const char *>
-    token * t, * f;
-    macro_arg * ma;
     dict * d;
 
-    for(i = 0; i < vec_len(buf); i++) {
-        t = (token *)vec_get(buf, i);
-        
-        if(split >= vec_len(fmt))
-            break;
+    if(vec_len(fmt)) {
+        size_t split = 0;
+        vector * v = vec_nil();     // vector<token>
+        token * t, * f;
+        macro_arg * ma;
 
-        if(t->type != TNULL) {
-            f = (token *)vec_get(fmt, split);
-            if(op_equal(t, f)) {
-                split++;
-                if(v->len) {
-                    if(vec_len(m->args) <= vec_len(args))
-                        errorf(t->pos.name, t->pos.row, t->pos.col, "too much arguments");
-                    ma = (macro_arg *)vec_get(m->args, vec_len(args));
+        while((t = read_token(true))->type != TEOF) {
+            
+            if(t->type != TNULL) {
+                f = (token *)vec_get(fmt, split);
+                if(op_equal(t, f)) {
+                    split++;
+                    if(v->len) {
+                        if(vec_len(m->args) <= vec_len(args))
+                            errorf(t->pos.name, t->pos.row, t->pos.col, "too much arguments");
+                        ma = (macro_arg *)vec_get(m->args, vec_len(args));
 
-                    vec_push(args, v);
-                    v = vec_nil();
+                        vec_push(args, v);
+                        v = vec_nil();
+                    }
+                    tok_free(t);
+                    if(vec_len(fmt) == split) 
+                        break;
+                    continue;
                 }
-                tok_free(t);
-                continue;
             }
+            vec_push(v, t);
         }
-        vec_push(v, t);
-    }
     
-    for(i = 0; i < vec_len(m->args); i++)
-        vec_push(tochar, buf_cstr(((macro_arg *)vec_get(m->args, i))->name));
+        for(size_t i = 0; i < vec_len(m->args); i++)
+            vec_push(tochar, buf_cstr(((macro_arg *)vec_get(m->args, i))->name));
 
-    if(vec_len(tochar) != vec_len(args))
-        errorf(t->pos.name, t->pos.row, t->pos.col, "invalid arguments count");
+        if(vec_len(tochar) != vec_len(args))
+            errorf(t->pos.name, t->pos.row, t->pos.col, "invalid arguments count");
+    }
 
     d = dict_create(tochar, args);
     vec_push(opened_args, d);
@@ -246,8 +246,8 @@ static void read_macro(void)
             }
             else errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: '%s'", print_token(t));
         }
-        else if(t->type == TOP && t->op[0] == '-' && t->op[1] == '>')
-            arg.value = read_token(true);
+        //else if(t->type == TOP && t->op[0] == '-' && t->op[1] == '>')
+        //    arg.value = read_token(true);
         else {
             if(t->type != TOP && t->type != TEOL)
                 errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: %s", print_token(t));
@@ -263,9 +263,12 @@ static void read_macro(void)
             break;
     }
 
+    if(s - arg.split >= 2)
+        vec_pop(m->arg_split);      // rm \n
+
     // read body
     bool mbend = false;
-    while((t = read_token(true))->type != TEOF) {
+    while((t = read_token(false))->type != TEOF) {
         if(t->type == TEND)
             mbend = true;
         else if(mbend) {
@@ -274,16 +277,14 @@ static void read_macro(void)
             mbend = false;
         }
         
-        if(t->type == TOP && t->op[0] == '#' && t->op[1] == '#')
-            vec_push(m->src, read_token(false));
-        else vec_push(m->src, t);
+        vec_push(m->src, t);
     }
     if(t->type == TEOF)
         errorf(t->pos.name, t->pos.row, t->pos.col, "missed '.end' for '%s' macro", buf_cstr(m->name));
 
     vec_pop(m->src);        // .end
-    // if(vec_len(m->src) && ((token *)vec_tail(m->src))->type == TEOL)
-    //     vec_pop(m->src);    // '\n'
+    if(vec_len(m->src) && ((token *)vec_tail(m->src))->type == TEOL)
+        vec_pop(m->src);    // '\n'
 
     vec_push(macros, m);
 }
@@ -312,23 +313,19 @@ bool is_defined(token * t)
     for(i = 0; i < vec_len(macros); i++) {
         m = (macro *)vec_get(macros, i);
         if(strcmp(buf_cstr(m->name), s) == 0) {
-            // read args
-            vector * v = vec_nil();
-            while((t = read_token(true))->type != TEOF) {
-                if(t->type == TOP && t->op[0] == '#' && t->op[1] == '#')
-                    vec_push(v, (t = read_token(false)));
-                else vec_push(v, t);
-                if(t->type == TEOL)
-                    break;
-            }
-            read_args(m, v);
+            read_args(m);
             vec_push(opened_macros, code_create(m));
             return true;
         }
     }
+    return false;
+}
 
-    // try to convert as macro arg
-    for(i = 0; i < vec_len(opened_args); i++) {
+bool is_arg(token * t)
+{
+    const char * s = buf_cstr(t->buf);
+
+    for(size_t i = 0; i < vec_len(opened_args); i++) {
         vector * v = (vector *)dict_get((dict *)vec_get(opened_args, i), s);
         if(v) {
             macro_code * c = code_from_buffer(v);

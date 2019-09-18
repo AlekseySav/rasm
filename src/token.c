@@ -74,7 +74,7 @@ static bool is_op(char c)
         c == '(' || c == ')' || c == '[' || c == ']' || 
         c == '{' || c == '}' || c == '#' || c == '$' || 
         c == '&' || c == '|' || c == '<' || c == '>' || 
-        c == '%' || c == ',');
+        c == '%' || c == ',' || c == ':');
 }
 
 static inline bool is_char(char c)
@@ -134,10 +134,8 @@ token * read_token(bool preprocess)
             c = rf_getc();
             if(is_op(c))
                 t->op[1] = c;
-            else {
-                t->op[1] = '\0';
+            else
                 rf_ungetc(c);
-            }
         }
 
         if(t->type == TSTR) {
@@ -164,18 +162,26 @@ token * read_token(bool preprocess)
             rf_ungetc(c);
         }
     }
+    
+    if(NOCVT_TOKEN(t))
+        return read_token(false);
 
-    if(t->type == TNULL && preprocess) {
+    if(t->type == TNULL) {
+        if(is_arg(t))
+            return read_token(preprocess);
+            
         const char * s = buf_cstr(t->buf);
         if(strcmp(s, ".macro") == 0)
             t->type = TMACRO;
         else if(strcmp(s, ".end") == 0)
             t->type = TEND;
-            
-        if(t->type != TNULL)
-            buf_release(t->buf);
-        else if(is_defined(t))
-            return read_token(preprocess);
+                
+        if(preprocess) {
+            if(t->type != TNULL)
+                buf_release(t->buf);
+            else if(is_defined(t))
+                return read_token(preprocess);
+        }
     }
     return t;
 }

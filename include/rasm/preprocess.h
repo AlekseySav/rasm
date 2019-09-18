@@ -8,5 +8,6 @@ token * token_buffer(void);
 void preprocess(token * t);
 
 bool is_defined(token * t);
+bool is_arg(token * t);
 
 #endif

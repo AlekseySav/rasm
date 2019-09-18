@@ -31,4 +31,6 @@ token * tok_copy(token * src);
 const char * print_token(token * t);
 token * read_token(bool preprocess);
 
+#define NOCVT_TOKEN(t) (t->type == TOP && t->op[0] == '#' && t->op[1] == '#')
+
 #endif

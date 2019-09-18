@@ -29,9 +29,10 @@ token * tok_copy(token * src)
 {
     token * t = tok_nil();
     t->type = src->type;
-    if(t->type == TSTR || t->type == TCHAR || t->type == TNULL)
+    if(t->type == TSTR || t->type == TCHAR || t->type == TNULL) {
         if(src->buf)
             t->buf = buf_copy(src->buf);
+    }
     else if(t->type == TOP) {
         t->op[0] = src->op[0];
         t->op[1] = src->op[1];
@@ -164,7 +165,7 @@ token * read_token(bool preprocess)
         }
     }
 
-    if(t->type == TNULL) {
+    if(t->type == TNULL && preprocess) {
         const char * s = buf_cstr(t->buf);
         if(strcmp(s, ".macro") == 0)
             t->type = TMACRO;
@@ -173,7 +174,7 @@ token * read_token(bool preprocess)
             
         if(t->type != TNULL)
             buf_release(t->buf);
-        else if(preprocess && is_defined(t))
+        else if(is_defined(t))
             return read_token(preprocess);
     }
     return t;

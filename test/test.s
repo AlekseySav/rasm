@@ -1,10 +1,9 @@
-.macro example arg1
-    .word arg1
-.end example
+.macro .const name = value
+    .macro name
+        value
+    .end name
+.end .const
 
-.macro e2 8, 0
-    8 = 0
-.end e2
+.const BOOTSEG = 0x07c0
 
-example 7
-e2 0, 7
+BOOTSEG

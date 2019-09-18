@@ -165,6 +165,7 @@ token * token_buffer(void)
             code_free((macro_code *)vec_pop(opened_macros));    // delete 'c'
             return token_buffer();
         }
+        token * t = (token *)vec_get(c->src, c->pos);
         return tok_copy((token *)vec_get(c->src, c->pos++));
     }
     return NULL;
@@ -175,39 +176,47 @@ token * token_buffer(void)
 
 static void read_args(macro * m, vector * buf)    // buf is vector<token>
 {
-    dict * d;
     vector * fmt = m->arg_split;
 
-    bool isop = false;
-    size_t curr_split = 0;
+    size_t i;
+    size_t split = 0;
     vector * v = vec_nil();     // vector<token>
-    vector * args = vec_nil();  // vector<vector<token *>>
-    token * t;
+    vector * args = vec_nil();  // vector<vector<token>>
+    vector * tochar = vec_nil();    // vector<const char *>
+    token * t, * f;
+    macro_arg * ma;
+    dict * d;
 
-    for(size_t i = 0; i < vec_len(buf); i++) {
+    for(i = 0; i < vec_len(buf); i++) {
         t = (token *)vec_get(buf, i);
+        
+        if(split >= vec_len(fmt))
+            break;
+
         if(t->type != TNULL) {
-            for(size_t j = curr_split; j < vec_len(fmt); j++) {
-                token * fj = (token *)vec_get(fmt, j);
-                if(op_equal(t, fj)) {
-                    curr_split = j;
+            f = (token *)vec_get(fmt, split);
+            if(op_equal(t, f)) {
+                split++;
+                if(v->len) {
+                    if(vec_len(m->args) <= vec_len(args))
+                        errorf(t->pos.name, t->pos.row, t->pos.col, "too much arguments");
+                    ma = (macro_arg *)vec_get(m->args, vec_len(args));
+
                     vec_push(args, v);
                     v = vec_nil();
-                    isop = true;
-                    break;
                 }
+                tok_free(t);
+                continue;
             }
-            if(isop) isop = false;
-            else vec_push(v, t);
         }
-        else vec_push(v, t);
+        vec_push(v, t);
     }
-    vec_free(v);
-    vec_push((vector *)vec_tail(args), t);  // new-line token
     
-    vector * tochar = vec_nil();
-    for(size_t i = 0; i < vec_len(m->args); i++)
+    for(i = 0; i < vec_len(m->args); i++)
         vec_push(tochar, buf_cstr(((macro_arg *)vec_get(m->args, i))->name));
+
+    if(vec_len(tochar) != vec_len(args))
+        errorf(t->pos.name, t->pos.row, t->pos.col, "invalid arguments count");
 
     d = dict_create(tochar, args);
     vec_push(opened_args, d);
@@ -237,6 +246,8 @@ static void read_macro(void)
             }
             else errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: '%s'", print_token(t));
         }
+        else if(t->type == TOP && t->op[0] == '-' && t->op[1] == '>')
+            arg.value = read_token(true);
         else {
             if(t->type != TOP && t->type != TEOL)
                 errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: %s", print_token(t));
@@ -262,14 +273,17 @@ static void read_macro(void)
                 break;      // .end macro
             mbend = false;
         }
-        vec_push(m->src, t);
+        
+        if(t->type == TOP && t->op[0] == '#' && t->op[1] == '#')
+            vec_push(m->src, read_token(false));
+        else vec_push(m->src, t);
     }
     if(t->type == TEOF)
         errorf(t->pos.name, t->pos.row, t->pos.col, "missed '.end' for '%s' macro", buf_cstr(m->name));
 
     vec_pop(m->src);        // .end
-    if(vec_len(m->src) && ((token *)vec_tail(m->src))->type == TEOL)
-        vec_pop(m->src);    // '\n'
+    // if(vec_len(m->src) && ((token *)vec_tail(m->src))->type == TEOL)
+    //     vec_pop(m->src);    // '\n'
 
     vec_push(macros, m);
 }
@@ -301,7 +315,9 @@ bool is_defined(token * t)
             // read args
             vector * v = vec_nil();
             while((t = read_token(true))->type != TEOF) {
-                vec_push(v, t);
+                if(t->type == TOP && t->op[0] == '#' && t->op[1] == '#')
+                    vec_push(v, (t = read_token(false)));
+                else vec_push(v, t);
                 if(t->type == TEOL)
                     break;
             }

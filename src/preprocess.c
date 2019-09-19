@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include <bool.h>
 #include <error.h>
@@ -215,7 +216,7 @@ static void read_args(macro * m)    // buf is vector<token>
             vec_push(tochar, buf_cstr(((macro_arg *)vec_get(m->args, i))->name));
 
         if(vec_len(tochar) != vec_len(args))
-            errorf(t->pos.name, t->pos.row, t->pos.col, "invalid arguments count");
+            errorf(t->pos.name, t->pos.row, t->pos.col, "too few arguments");
     }
 
     d = dict_create(tochar, args);
@@ -268,7 +269,7 @@ static void read_macro(void)
 
     // read body
     bool mbend = false;
-    while((t = read_token(false))->type != TEOF) {
+    while((t = read_token(true))->type != TEOF) {
         if(t->type == TEND)
             mbend = true;
         else if(mbend) {
@@ -297,6 +298,23 @@ void preprocess(token * t)
             break;
         case TEND:
             warnf(t->pos.name, t->pos.row, t->pos.col, "no '.macro' or '.if' for '.end' command");
+            break;
+        case TERROR:
+        case TWARN:
+            if(t->type == TERROR)
+                errorp(t->pos.name, t->pos.row, t->pos.col);
+            else
+                warnp(t->pos.name, t->pos.row, t->pos.col);
+            while((t = read_token(true))->type != TEOL) {
+                if(!(t->type == TOP && t->op[0] == ',' && t->op[1] == '\0'))
+                    print(t->type == TERROR, print_token(t));
+                else {
+                    t->op[0] = ' ';
+                    print(t->type == TERROR, print_token(t));
+                }
+                tok_free(t);
+            }
+            print(t->type == TERROR, "\n");
             break;
         default:
             warnf(t->pos.name, t->pos.row, t->pos.col, "%s: unrecognized preprocessor directive", print_token(t));

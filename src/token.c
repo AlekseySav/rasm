@@ -163,9 +163,11 @@ token * read_token(bool preprocess)
         }
     }
     
-    if(NOCVT_TOKEN(t))
+    if(NOCVT_TOKEN(t)) {
+        tok_free(t);
         return read_token(false);
-
+    }
+    
     if(t->type == TNULL) {
         if(is_arg(t))
             return read_token(preprocess);
@@ -175,6 +177,10 @@ token * read_token(bool preprocess)
             t->type = TMACRO;
         else if(strcmp(s, ".end") == 0)
             t->type = TEND;
+        else if(strcmp(s, ".error") == 0)
+            t->type = TERROR;
+        else if(strcmp(s, ".warning") == 0)
+            t->type = TWARN;
                 
         if(preprocess) {
             if(t->type != TNULL)

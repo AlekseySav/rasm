@@ -21,6 +21,8 @@ typedef struct {
 #define TPREP       16  // preprocess
 #define TMACRO      (TPREP | 1)
 #define TEND        (TPREP | 2)
+#define TERROR      (TPREP | 3)
+#define TWARN       (TPREP | 4)
 
 #define tok_release(t) (tok_free(t), ((t) = NULL))
 

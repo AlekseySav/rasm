@@ -1,3 +1,8 @@
-.warning dsedfkm, zsfv, fsend
-x
-.error dkjbv, dvcsdkjzv 
+.include "inc.s"
+
+__rasm__
+nil
+
+.release nil
+
+nil

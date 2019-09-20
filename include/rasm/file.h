@@ -15,7 +15,7 @@ void rf_shutdown(void);
 void add_path(const char * inc);
 
 void rf_open(const char * file);
-void rf_close(void);
+size_t rf_close(void);
 
 char rf_getc(void);
 void rf_ungetc(char c);

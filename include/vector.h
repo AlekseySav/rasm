@@ -17,7 +17,7 @@ vector * vec_create(void);
 void vec_free(vector * v);
 
 void vec_push(vector * v, const void * value);
-const void * vec_pop(vector * v); 
+const void * vec_pop(vector * v);
 
 void vec_set(vector * v, size_t index, const void * value);
 const void * vec_get(vector * v, size_t index);

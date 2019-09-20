@@ -23,6 +23,8 @@ typedef struct {
 #define TEND        (TPREP | 2)
 #define TERROR      (TPREP | 3)
 #define TWARN       (TPREP | 4)
+#define TRELEASE    (TPREP | 5)
+#define TINCLUDE    (TPREP | 6)
 
 #define tok_release(t) (tok_free(t), ((t) = NULL))
 

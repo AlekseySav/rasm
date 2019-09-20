@@ -48,6 +48,12 @@ static void echo(FILE * f, const char * fmt, va_list args)
     fprintf(f, "\n");
 }
 
+void rexit(int err)
+{
+    if(err || FLAG_CHECK(_Werror))
+        exit(1);
+}
+
 void print(int err, const char * str)
 {
     if(!err && FLAG_CHECK(_Wall))
@@ -67,6 +73,8 @@ void errorp(const char * file, int line, int col)
 
 void warnp(const char * file, int line, int col)
 {
+    if(FLAG_CHECK(_Wall))
+        return;
 #ifndef NO_EXTENDED_WRITE
     fprintf(FLAG_CHECK(_Werror) ? stderr : stdout, "\033[1m%s:%d:%d: %s: \033[0m", file, line, col, "\033[35mwarning");
 #else
@@ -95,6 +103,5 @@ void warnf(const char * file, int line, int col, const char * msg, ...)
     echo(FLAG_CHECK(_Werror) ? stderr : stdout, msg, ap);
     va_end(ap);
 
-    if(FLAG_CHECK(_Werror))
-        exit(1);
+    exit(0);
 }

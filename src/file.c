@@ -93,6 +93,8 @@ void rf_open(const char * file)
     if(!f->ptr) {
         if(vec_len(files) == 0)
             panic("cannot open input file");
+        else 
+            errorf(rf_getline().name, rf_getline().row, rf_getline().col, "connot open '%s' source file", file);
     }
 
     f->r++;
@@ -104,12 +106,14 @@ void rf_open(const char * file)
     vec_push(files, f);
 }
 
-void rf_close(void)
+size_t rf_close(void)
 {
     struct file * f = (struct file *)vec_pop(files);
     buf_free(f->name);
     buf_free(f->dir);
     free(f);
+
+    return vec_len(files);
 }
 
 char rf_getc(void)

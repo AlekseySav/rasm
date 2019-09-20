@@ -12,6 +12,8 @@
 #include <rasm/token.h>
 #include <rasm/preprocess.h>
 
+static const char * stdinc_file = "rasm.s";
+
 static void usage(void)
 {
     die("usage: %s [options] <file>\n"
@@ -57,21 +59,23 @@ int main(int argc, char * argv[])
         panic("no input files");
 
     rf_open(file);
+    if(!FLAG_CHECK(_nostdinc))
+        rf_open(stdinc_file);
 
     token * t;
 
-    while((t = read_token(true))->type != TEOF) {
-        if(t->type & TPREP)
-            preprocess(t);
-        else if(FLAG_CHECK(_E)) {
-            if(t->type == TEOL) printf("\n");
-            else printf("%s ", print_token(t));
+    do {
+        while((t = read_token(true))->type != TEOF) {
+            if(t->type & TPREP)
+                preprocess(t);
+            else if(FLAG_CHECK(_E)) {
+                if(t->type == TEOL) printf("\n");
+                else printf("%s ", print_token(t));
+            }
+            tok_release(t);
         }
         tok_release(t);
-    }
-    tok_release(t);
-
-    rf_close();
+    } while(rf_close());
 
     pr_shutdown();
     rf_shutdown();

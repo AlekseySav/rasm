@@ -141,13 +141,13 @@ token * read_token(bool preprocess)
         if(t->type == TSTR) {
             t->buf = buf_nil();
             char e = c;
-            while(c != EOF) {
+            while((c = rf_getc()) != EOF) {
+                if(c == e)
+                    break;
                 buf_push(t->buf, c);
-                if((c = rf_getc()) == e) break;
             }
             if(c == EOF)
                 errorf(t->pos.name, t->pos.row, t->pos.col, "expected closing comma");
-            buf_push(t->buf, c);
             
             if(c == '\'')
                 t->type = TCHAR;
@@ -181,6 +181,10 @@ token * read_token(bool preprocess)
             t->type = TERROR;
         else if(strcmp(s, ".warning") == 0)
             t->type = TWARN;
+        else if(strcmp(s, ".release") == 0)
+            t->type = TRELEASE;
+        else if(strcmp(s, ".include") == 0)
+            t->type = TINCLUDE;
                 
         if(preprocess) {
             if(t->type != TNULL)

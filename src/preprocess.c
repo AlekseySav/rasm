@@ -292,6 +292,7 @@ static void read_macro(void)
 
 void preprocess(token * t)
 {
+    int tp = TWARN;
     switch(t->type) {
         case TMACRO:
             read_macro();
@@ -300,6 +301,7 @@ void preprocess(token * t)
             warnf(t->pos.name, t->pos.row, t->pos.col, "no '.macro' or '.if' for '.end' command");
             break;
         case TERROR:
+            tp = TERROR;
         case TWARN:
             if(t->type == TERROR)
                 errorp(t->pos.name, t->pos.row, t->pos.col);
@@ -307,14 +309,37 @@ void preprocess(token * t)
                 warnp(t->pos.name, t->pos.row, t->pos.col);
             while((t = read_token(true))->type != TEOL) {
                 if(!(t->type == TOP && t->op[0] == ',' && t->op[1] == '\0'))
-                    print(t->type == TERROR, print_token(t));
+                    print(tp == TERROR, print_token(t));
                 else {
                     t->op[0] = ' ';
-                    print(t->type == TERROR, print_token(t));
+                    print(tp == TERROR, print_token(t));
                 }
                 tok_free(t);
             }
-            print(t->type == TERROR, "\n");
+            print(tp == TERROR, "\n");
+            rexit(tp == TERROR);
+            break;
+        case TRELEASE:
+            t = read_token(false);      // macro name
+            if(t->type != TNULL || t->buf == NULL)
+                errorf(t->pos.name, t->pos.row, t->pos.col, "'%s' is uncorrect argument for '.release'", print_token(t));
+            for(tp = 0; tp < (int)vec_len(macros); tp++)
+                if(strcmp(buf_cstr(((macro *)vec_get(macros, tp))->name), buf_cstr(t->buf)) == 0) {
+                    mac_free((macro *)vec_get(macros, tp));
+                    if(vec_len(macros) > tp + 1)
+                        vec_set(macros, tp, vec_pop(macros));
+                    else vec_pop(macros);
+                    tok_free(t);
+                    return;
+                }
+                warnf(t->pos.name, t->pos.row, t->pos.col, "'%s' macro does not found", print_token(t));
+            break;
+        case TINCLUDE:
+            t = read_token(true);
+            if(!t->buf)
+                errorf(t->pos.name, t->pos.row, t->pos.col, "uncorrect file name");
+            rf_open(buf_cstr(t->buf));
+            tok_free(t);
             break;
         default:
             warnf(t->pos.name, t->pos.row, t->pos.col, "%s: unrecognized preprocessor directive", print_token(t));

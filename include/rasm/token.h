@@ -18,7 +18,13 @@ typedef struct {
 #define TSTR        4   // "str"
 #define TCHAR       5   // 'c'
 
-#define TPREP       16  // preprocess
+#define TASM        16  // asm compiler commands
+#define TBYTE       (TASM | 1)
+#define TWORD       (TASM | 2)
+#define TDWORD      (TASM | 3)
+#define TQUAD       (TASM | 4)
+
+#define TPREP       32  // preprocess
 #define TMACRO      (TPREP | 1)
 #define TEND        (TPREP | 2)
 #define TERROR      (TPREP | 3)

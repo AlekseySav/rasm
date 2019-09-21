@@ -41,29 +41,37 @@ token * tok_copy(token * src)
     return t;
 }
 
-static const char * print_undef = "{???}";
-static const char * print_null = "(null)";
-static const char * print_eof = "(eof)";
-static const char * print_eol = "(new-line)";
+static const char * tok_undef = "{???}";
+static const char * tok_null = "(null)";
+static const char * tok_eof = "(eof)";
+static const char * tok_eol = "(new-line)";
+
+static const char * tok_asm[] = { ".byte", ".word", ".dword", ".quad" };
+static const char * tok_prep[] = { ".macro", ".end", ".error", ".warning", ".release", ".include" };
 
 const char * print_token(token * t)
 {
+    if(t->type & TASM)
+        return tok_asm[t->type - TASM - 1];
+    if(t->type & TPREP)
+        return tok_prep[t->type - TPREP - 1];
+    
     switch(t->type) {
         case TNULL:
             if(t->buf == NULL)
-                return print_null;
+                return tok_null;
             else return buf_cstr(t->buf);
         case TEOF:
-            return print_eof;
+            return tok_eof;
         case TEOL:
-            return print_eol;
+            return tok_eol;
         case TOP:
             return t->op;   // t->op[2] must be zero
         case TSTR:
         case TCHAR:
             return buf_cstr(t->buf);
         default:
-            return print_undef;
+            return tok_undef;
     }
 }
 
@@ -173,17 +181,26 @@ token * read_token(bool preprocess)
             return read_token(preprocess);
             
         const char * s = buf_cstr(t->buf);
-        if(strcmp(s, ".macro") == 0)
+        if(strcmp(s, tok_asm[0]) == 0)
+            t->type = TBYTE;
+        else if(strcmp(s, tok_asm[1]) == 0)
+            t->type = TWORD;
+        else if(strcmp(s, tok_asm[2]) == 0)
+            t->type = TDWORD;
+        else if(strcmp(s, tok_asm[3]) == 0)
+            t->type = TQUAD;
+
+        else if(strcmp(s, tok_prep[0]) == 0)
             t->type = TMACRO;
-        else if(strcmp(s, ".end") == 0)
+        else if(strcmp(s, tok_prep[1]) == 0)
             t->type = TEND;
-        else if(strcmp(s, ".error") == 0)
+        else if(strcmp(s, tok_prep[2]) == 0)
             t->type = TERROR;
-        else if(strcmp(s, ".warning") == 0)
+        else if(strcmp(s, tok_prep[3]) == 0)
             t->type = TWARN;
-        else if(strcmp(s, ".release") == 0)
+        else if(strcmp(s, tok_prep[4]) == 0)
             t->type = TRELEASE;
-        else if(strcmp(s, ".include") == 0)
+        else if(strcmp(s, tok_prep[5]) == 0)
             t->type = TINCLUDE;
                 
         if(preprocess) {

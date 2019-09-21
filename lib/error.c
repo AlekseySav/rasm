@@ -103,5 +103,5 @@ void warnf(const char * file, int line, int col, const char * msg, ...)
     echo(FLAG_CHECK(_Werror) ? stderr : stdout, msg, ap);
     va_end(ap);
 
-    exit(0);
+    rexit(0);
 }

@@ -63,19 +63,52 @@ int main(int argc, char * argv[])
         rf_open(stdinc_file);
 
     token * t;
+    token * prev = NULL;
+    size_t isasm = 0; // is asm command
+    size_t pos = 0;
+    char __buf[50];
 
     do {
         while((t = read_token(true))->type != TEOF) {
-            if(t->type & TPREP)
+            if(t->type & TPREP) {
                 preprocess(t);
-            else if(FLAG_CHECK(_E)) {
-                if(t->type == TEOL) printf("\n");
-                else printf("%s ", print_token(t));
+                continue;
             }
-            tok_release(t);
+            if(t->type == TOP && t->op[0] == ':' && t->op[1] == '\0') {
+                tok_free(t);
+                t = tok_nil();
+                sprintf(__buf, "%ld", pos);     // its for debug only...
+                t->buf = buf_create(__buf);
+                define_const(prev, t);
+                prev = NULL;
+                continue;
+            }
+            if(prev && FLAG_CHECK(_E)) {
+                if(prev->type == TEOL) printf("\n");
+                else printf("%s ", print_token(prev));
+            }
+
+            if(t->type & TASM) {
+                if(isasm) warnf(t->pos.name, t->pos.row, t->pos.col, "expected (new-line) symbol");
+                switch(t->type) {
+                    case TBYTE: isasm = 1; break;
+                    case TWORD: isasm = 2; break;
+                    case TDWORD: isasm = 4; break;
+                    case TQUAD: isasm = 8; break;
+                    default:
+                        warnf(t->pos.name, t->pos.row, t->pos.col, "unknown assembler command");
+                }
+            }
+            else if(t->type == TEOL)
+                isasm = 0;
+            else if(t->type == TNULL)   // for each element in .byte a1, a2, ...
+                pos += isasm;
+            tok_release(prev);
+            prev = t;
         }
-        tok_release(t);
+        tok_release(prev);
     } while(rf_close());
+    printf("\n");
 
     pr_shutdown();
     rf_shutdown();

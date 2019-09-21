@@ -124,9 +124,8 @@ char rf_getc(void)
     
     c = (char)getc(curr_file->ptr);
     
-    if(c != '\n' || curr_file->prev == '\n')
-        if(isspace(c))
-            c = ' ';          // nonspace char
+    if(isspace(c) && c != '\n')
+        c = ' ';          // nonspace char
 
     if(c == '\\') {             // skip whitespace
         curr_file->prev = '\\';

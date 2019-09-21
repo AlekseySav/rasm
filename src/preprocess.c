@@ -172,6 +172,8 @@ token * token_buffer(void)
     return NULL;
 }
 
+#define op_check(t, op1, op2) (t->type == TOP && t->op[0] == op1 && t->op[1] == op2)
+
 #define op_equal(t1, t2) ((t1->type == TEOL && t2->type == TEOL) || \
     ((t1)->op[0] == (t2)->op[0] && (t1)->op[1] == (t2)->op[1]))
 
@@ -190,19 +192,35 @@ static void read_args(macro * m)    // buf is vector<token>
         macro_arg * ma;
 
         while((t = read_token(true))->type != TEOF) {
-            
             if(t->type != TNULL) {
                 f = (token *)vec_get(fmt, split);
                 if(op_equal(t, f)) {
                     split++;
-                    if(v->len) {
-                        if(vec_len(m->args) <= vec_len(args))
-                            errorf(t->pos.name, t->pos.row, t->pos.col, "too much arguments");
-                        ma = (macro_arg *)vec_get(m->args, vec_len(args));
 
-                        vec_push(args, v);
-                        v = vec_nil();
+                    if(vec_len(m->args) <= vec_len(args)) {
+                        if(v->len)
+                            errorf(t->pos.name, t->pos.row, t->pos.col, "too much arguments");
                     }
+                    else {
+                        ma = (macro_arg *)vec_get(m->args, vec_len(args));
+                    
+                        if(ma->split == split) {
+                            if(!v->len) {
+                                if(!ma->value)
+                                    errorf(t->pos.name, t->pos.row, t->pos.col, "missed non-optional parameter");
+                                for(size_t i = 0; i < vec_len(ma->value); i++)  // "deepcopy"
+                                    vec_push(v, tok_copy((token *)vec_get(ma->value, i)));
+                            }
+                            vec_push(args, v);
+                            v = vec_nil();
+                        }
+                        else if(v->len) {
+                            warnf(t->pos.name, t->pos.row, t->pos.col, "trash between macro arguments");
+                            vec_free(v);
+                            v = vec_nil();
+                        }
+                    }
+
                     tok_free(t);
                     if(vec_len(fmt) == split) 
                         break;
@@ -211,6 +229,8 @@ static void read_args(macro * m)    // buf is vector<token>
             }
             vec_push(v, t);
         }
+        if(t->type == TEOF)
+            errorf(t->pos.name, t->pos.row, t->pos.col, "end of file not unexpected");
     
         for(size_t i = 0; i < vec_len(m->args); i++)
             vec_push(tochar, buf_cstr(((macro_arg *)vec_get(m->args, i))->name));
@@ -231,7 +251,7 @@ static void read_macro(void)
     // read name
     t = read_token(true);
     if(t->type != TNULL)
-        errorf(t->pos.name, t->pos.row, t->pos.col, "%s is uncorrect macro name", print_token(t));
+        errorf(t->pos.name, t->pos.row, t->pos.col, "'%s' is uncorrect macro name", print_token(t));
     m->name = t->buf;
     free(t);
 
@@ -247,11 +267,25 @@ static void read_macro(void)
             }
             else errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: '%s'", print_token(t));
         }
-        //else if(t->type == TOP && t->op[0] == '-' && t->op[1] == '>')
-        //    arg.value = read_token(true);
+        else if(op_check(t, '-', '>')) {
+            tok_free(t);
+            arg.value = vec_nil();
+            t = read_token(true);
+            if(op_check(t, '(', '(')) {
+                do {
+                    t = read_token(true);
+                    if(op_check(t, ')', ')'))
+                        break;
+                    vec_push(arg.value, t);
+                } while(t->type != TEOF);
+                if(t->type == TEOF)
+                    errorf(t->pos.name, t->pos.row, t->pos.col, "missed closing comma for optional argument");
+            }
+            else vec_push(arg.value, t);
+        }
         else {
             if(t->type != TOP && t->type != TEOL)
-                errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: %s", print_token(t));
+                errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: '%s'", print_token(t));
             vec_push(m->arg_split, t);
             if(arg.name) {
                 vec_push(m->args, arg_create(arg));
@@ -342,9 +376,18 @@ void preprocess(token * t)
             tok_free(t);
             break;
         default:
-            warnf(t->pos.name, t->pos.row, t->pos.col, "%s: unrecognized preprocessor directive", print_token(t));
+            warnf(t->pos.name, t->pos.row, t->pos.col, "'%s': unrecognized preprocessor directive", print_token(t));
             break;
     }
+}
+
+void define_const(token * name, token * value)
+{
+    macro * m = mac_nil();
+    m->name = name->buf;
+    free(name);
+    vec_push(m->src, value);
+    vec_push(macros, m);
 }
 
 bool is_defined(token * t)

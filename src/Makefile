@@ -4,6 +4,7 @@ C_INC 	= ../include
 LD		+= -r
 
 OBJECTS = file.o \
+	parse.o \
 	preprocess.o \
 	token.o
 
@@ -16,6 +17,8 @@ clean:
 	rm -f *.o
 
 file.o: file.c
+
+parse.o: parse.c
 
 preprocess.o: preprocess.c
 

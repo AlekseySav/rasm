@@ -125,13 +125,14 @@ char rf_getc(void)
     c = (char)getc(curr_file->ptr);
     
     if(isspace(c) && c != '\n')
-        c = ' ';          // nonspace char
-
+        c = ' ';          // nonspace char    
+        
     if(c == '\\') {             // skip whitespace
-        curr_file->prev = '\\';
         c = rf_getc();
-        if(!isspace(c))
+        if(!isspace(c)) {
             rf_ungetc(c);
+            c = '\\';
+        }
         else return rf_getc();
     }
 
@@ -160,7 +161,7 @@ char rf_getc(void)
 
 void rf_ungetc(char c)
 {
-    if(c == EOF || curr_file->prev == EOF)
+    if(c == EOF)
         return;
 
     curr_file->prev = 0;

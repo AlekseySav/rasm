@@ -1,19 +1,10 @@
-.include "inc.s"
+[]
+.macro nil
+11
+.end nil
 
-
-
-__rasm__
-nil
-
-.release nil
-
-macro nil ( ) 
-{
-    a, b, c
-})))
-
-nil 8, 9, 10
-
-.word 0
-pos1:
-pos1
+.if !declared nil
+    .error 0 != 0
+.else
+    .warning hehe
+.end if

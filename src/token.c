@@ -37,6 +37,8 @@ token * tok_copy(token * src)
         t->op[0] = src->op[0];
         t->op[1] = src->op[1];
     }
+    else if(t->type == TINT)
+        t->num = src->num;
     t->pos = src->pos;
     return t;
 }
@@ -45,12 +47,19 @@ static const char * tok_undef = "{???}";
 static const char * tok_null = "(null)";
 static const char * tok_eof = "(eof)";
 static const char * tok_eol = "(new-line)";
+static char tok_num[50];
 
-static const char * tok_asm[] = { ".byte", ".word", ".dword", ".quad" };
-static const char * tok_prep[] = { ".macro", ".end", ".error", ".warning", ".release", ".include" };
+static const char * tok_asm[] = { ".byte", ".word", ".dword", ".quad", ".ascii" };
+static const char * tok_prep[] = { ".macro", ".end", ".error", ".warning", 
+    ".release", ".include", ".if", ".else" };
+static const char * tok_exprep[] = { "declared", "typeof" };
+
+#define ARRSIZ(l) (sizeof(l) / sizeof((l)[0]))
 
 const char * print_token(token * t)
 {
+    if(t->type & TEXPREP)
+        return tok_exprep[t->type - TEXPREP - 1];
     if(t->type & TASM)
         return tok_asm[t->type - TASM - 1];
     if(t->type & TPREP)
@@ -70,9 +79,69 @@ const char * print_token(token * t)
         case TSTR:
         case TCHAR:
             return buf_cstr(t->buf);
+        case TINT:
+            sprintf(tok_num, "%#llx", t->num);
+            return tok_num;
         default:
             return tok_undef;
     }
+}
+
+struct optional_long {
+    bool is_value;
+    long long value;
+};
+
+static struct optional_long is_int(const char * s)
+{
+    unsigned k = 0;
+    bool neg = false;
+    int i = 0;
+    struct optional_long res = { false, 0 };
+
+    int end = strlen(s);
+
+    if(s[0] == '-') {
+        i++;
+        neg = true;
+    }
+
+    if(s[i] == '0' && (s[i + 1] == 'x' || s[i + 1] == 'X')) {
+        k = 16;
+        i += 2;
+    }
+    
+    if(!k) {
+        end--;
+        if(s[end] == 'h')
+            k = 16;
+        else if(s[end] == 'b')
+            k = 2;
+        else if(s[end] == 'd')
+            k = 10;
+        else {
+            k = 10;
+            end++;
+        }
+    }
+
+    if(i >= end) return res;    // no symbols except attributes
+
+    while(i < end) {
+        unsigned char c = s[i];
+        if(c - '0' < k)
+            res.value = res.value * k + c - '0';
+        else if(c - 'a' + 10 < k)
+            res.value = res.value * k + c - 'a' + 10;
+        else if(c - 'A' + 10 < k)
+            res.value = res.value * k + c - 'A' + 10;
+        else return res;    // res.is_value is still false
+        i++;
+    }
+    if(neg)
+        res.value = -res.value;
+    res.is_value = true;
+    return res;
 }
 
 static bool is_op(char c) 
@@ -92,39 +161,32 @@ static inline bool is_char(char c)
         (c == '_' || c == '.');
 }
 
-static char to_char(token * t)
+token * preprocess_token(token * t)
 {
-    const char * err = "invalid character format";
-    const char * s = buf_cstr(t->buf);
-    size_t l = buf_len(t->buf);
+    if(is_defined(t))
+        return read_token(preprocess);
+    return t;
+}
 
-    if(l == 1) return s[0];
-    if(l == 2) { // '\X'
-        if(s[0] != '\\')
-            errorf(t->pos.name, t->pos.row, t->pos.col, err);
-        if(s[1] >= '0' && s[1] <= '7')
-            return s[1] - '0';
-        switch(s[1]) {
-            case 'a': return '\a';
-            case 'b': return '\b';
-            case 'e': return '\e';
-            case 'f': return '\f';
-            case 'n': return '\n';
-            case 'r': return '\r';
-            case 't': return '\t';
-            case 'v': return '\v';
-        }
-    }
-    if(l == 4 && s[0] == '\\' && s[1] == '0' && s[2] == '3' && s[3] == '3') // ESC
-        return '\033';
-    else
-        errorf(t->pos.name, t->pos.row, t->pos.col, err);
+static token * unget;
+
+void tok_unget1(token * t)
+{
+    unget = t;
 }
 
 token * read_token(bool preprocess)
 {
     char c;
-    token * t = token_buffer();
+    token * t;
+    
+    if(unget != NULL) {
+        t = unget;
+        unget = NULL;
+        return t;
+    }
+
+    t = token_buffer();
     if(t == NULL) {
         t = tok_nil();
 
@@ -181,34 +243,44 @@ token * read_token(bool preprocess)
             return read_token(preprocess);
             
         const char * s = buf_cstr(t->buf);
-        if(strcmp(s, tok_asm[0]) == 0)
-            t->type = TBYTE;
-        else if(strcmp(s, tok_asm[1]) == 0)
-            t->type = TWORD;
-        else if(strcmp(s, tok_asm[2]) == 0)
-            t->type = TDWORD;
-        else if(strcmp(s, tok_asm[3]) == 0)
-            t->type = TQUAD;
+        int i;
 
-        else if(strcmp(s, tok_prep[0]) == 0)
-            t->type = TMACRO;
-        else if(strcmp(s, tok_prep[1]) == 0)
-            t->type = TEND;
-        else if(strcmp(s, tok_prep[2]) == 0)
-            t->type = TERROR;
-        else if(strcmp(s, tok_prep[3]) == 0)
-            t->type = TWARN;
-        else if(strcmp(s, tok_prep[4]) == 0)
-            t->type = TRELEASE;
-        else if(strcmp(s, tok_prep[5]) == 0)
-            t->type = TINCLUDE;
-                
-        if(preprocess) {
-            if(t->type != TNULL)
+        if(s[0] == '.') {
+            for(i = 0; i < ARRSIZ(tok_asm); i++)              // mb asm
+                if(strcmp(s, tok_asm[i]) == 0) {
+                    t->type = TASM + i + 1;
+                    break;
+                }
+
+            if(!t->type)
+                for(i = 0; i < ARRSIZ(tok_prep); i++)          // mb preprosess
+                    if(strcmp(s, tok_prep[i]) == 0) {
+                        t->type = TPREP + i + 1;
+                        break;
+                    }
+
+            if(t->type)
                 buf_release(t->buf);
-            else if(is_defined(t))
-                return read_token(preprocess);
         }
+
+        for(i = 0; i < ARRSIZ(tok_exprep); i++)              // mb exprep
+            if(strcmp(s, tok_exprep[i]) == 0) {
+                t->type = TEXPREP + i + 1;
+                break;
+            }
+
+        if(!t->type) {
+            struct optional_long l = is_int(s);
+            if(l.is_value) {
+                buf_free(t->buf);
+                t->num = l.value;
+                t->type = TINT;
+            }
+        }
+
+        if(!t->type)
+            if(preprocess)
+                return preprocess_token(t);
     }
     return t;
 }

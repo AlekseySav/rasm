@@ -11,5 +11,6 @@ void define_const(token * name, token * value);
 
 bool is_defined(token * t);
 bool is_arg(token * t);
+bool is_macro(token * t);
 
 #endif

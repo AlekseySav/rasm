@@ -10,6 +10,7 @@
 
 #include <rasm/file.h>
 #include <rasm/token.h>
+#include <rasm/parse.h>
 
 typedef struct {
     buffer * name;
@@ -88,6 +89,7 @@ static macro_code * code_from_buffer(vector * v)
     macro_code * c = malloc(sizeof(macro_code));
     c->src = v;
     c->pos = 0;
+    c->close_macro = false;
     return c;
 }
 
@@ -172,10 +174,8 @@ token * token_buffer(void)
     return NULL;
 }
 
-#define op_check(t, op1, op2) (t->type == TOP && t->op[0] == op1 && t->op[1] == op2)
-
 #define op_equal(t1, t2) ((t1->type == TEOL && t2->type == TEOL) || \
-    ((t1)->op[0] == (t2)->op[0] && (t1)->op[1] == (t2)->op[1]))
+    ((t1)->num == (t2)->num))
 
 static void read_args(macro * m)    // buf is vector<token>
 {
@@ -267,14 +267,14 @@ static void read_macro(void)
             }
             else errorf(t->pos.name, t->pos.row, t->pos.col, "illegal symbol founded: '%s'", print_token(t));
         }
-        else if(op_check(t, '-', '>')) {
+        else if(tok_op(t, "->")) {
             tok_free(t);
             arg.value = vec_nil();
             t = read_token(true);
-            if(op_check(t, '(', '(')) {
+            if(tok_op(t, "((")) {
                 do {
                     t = read_token(true);
-                    if(op_check(t, ')', ')'))
+                    if(tok_op(t, "))"))
                         break;
                     vec_push(arg.value, t);
                 } while(t->type != TEOF);
@@ -318,10 +318,41 @@ static void read_macro(void)
         errorf(t->pos.name, t->pos.row, t->pos.col, "missed '.end' for '%s' macro", buf_cstr(m->name));
 
     vec_pop(m->src);        // .end
-    if(vec_len(m->src) && ((token *)vec_tail(m->src))->type == TEOL)
-        vec_pop(m->src);    // '\n'
+    // if(vec_len(m->src) && ((token *)vec_tail(m->src))->type == TEOL)
+    //     vec_pop(m->src);    // '\n'
 
     vec_push(macros, m);
+}
+
+static void read_if(void)
+{
+    bool res = parse_tokens().value;
+    token * t;
+    vector * v = vec_nil();
+
+    int ends = 1;
+    bool mbend = false;
+
+    while((t = read_token(false))->type != TEOF) {
+        if(t->type == TEND) mbend = true;
+        else if(mbend && !t->type && t->buf && strcmp(buf_cstr(t->buf), "if") == 0) {
+            ends--;
+            if(ends == 0) break;
+        }
+
+        if(t->type == TELSE && ends == 1) res = !res;
+        else if(res) vec_push(v, t);
+    }
+
+    if(t->type == TEOF)
+        errorf(t->pos.name, t->pos.row, t->pos.col, "missed '.end' directive for '.if'");
+
+    tok_free(t);
+    if(vec_len(v)) {
+        tok_free((token *)vec_pop(v));       // .end
+        vec_push(opened_macros, code_from_buffer(v));
+    }
+    else vec_free(v);
 }
 
 void preprocess(token * t)
@@ -375,6 +406,11 @@ void preprocess(token * t)
             rf_open(buf_cstr(t->buf));
             tok_free(t);
             break;
+        case TIF:
+            read_if();
+            break;
+        case TELSE:
+            warnf(t->pos.name, t->pos.row, t->pos.col, "no '.if' derective for '.else'");
         default:
             warnf(t->pos.name, t->pos.row, t->pos.col, "'%s': unrecognized preprocessor directive", print_token(t));
             break;
@@ -415,10 +451,23 @@ bool is_arg(token * t)
         vector * v = (vector *)dict_get((dict *)vec_get(opened_args, i), s);
         if(v) {
             macro_code * c = code_from_buffer(v);
-            c->close_macro = false;
             vec_push(opened_macros, c);
             return true;
         }
+    }
+    return false;
+}
+
+bool is_macro(token * t)
+{
+    size_t i;
+    macro * m;
+    const char * s = buf_cstr(t->buf);
+
+    for(i = 0; i < vec_len(macros); i++) {
+        m = (macro *)vec_get(macros, i);
+        if(strcmp(buf_cstr(m->name), s) == 0)
+            return true;
     }
     return false;
 }

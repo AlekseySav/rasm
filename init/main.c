@@ -66,23 +66,23 @@ int main(int argc, char * argv[])
     token * prev = NULL;
     size_t isasm = 0; // is asm command
     size_t pos = 0;
-    char __buf[50];
 
     do {
-        while((t = read_token(true))->type != TEOF) {
+        while((t = read_token(true))->type != TUNDEF) {
             if(t->type & TPREP) {
                 preprocess(t);
                 continue;
             }
-            if(t->type == TOP && t->op[0] == ':' && t->op[1] == '\0') {
+            else if(t->type == TOP && t->op[0] == ':' && t->op[1] == '\0') {
                 tok_free(t);
                 t = tok_nil();
-                sprintf(__buf, "%ld", pos);     // its for debug only...
-                t->buf = buf_create(__buf);
+                t->type = TINT;
+                t->num = pos;
                 define_const(prev, t);
                 prev = NULL;
                 continue;
             }
+            
             if(prev && FLAG_CHECK(_E)) {
                 if(prev->type == TEOL) printf("\n");
                 else printf("%s ", print_token(prev));
@@ -91,6 +91,7 @@ int main(int argc, char * argv[])
             if(t->type & TASM) {
                 if(isasm) warnf(t->pos.name, t->pos.row, t->pos.col, "expected (new-line) symbol");
                 switch(t->type) {
+                    case TASCII:
                     case TBYTE: isasm = 1; break;
                     case TWORD: isasm = 2; break;
                     case TDWORD: isasm = 4; break;
@@ -101,13 +102,22 @@ int main(int argc, char * argv[])
             }
             else if(t->type == TEOL)
                 isasm = 0;
-            else if(t->type == TNULL)   // for each element in .byte a1, a2, ...
+            else if(t->type == TSTR)
+                pos += isasm * buf_len(t->buf);
+            else if(t->type != TOP)   // for each element in .byte a1, a2, ...
                 pos += isasm;
             tok_release(prev);
             prev = t;
+
+            if(t->type == TEOF)
+                break;
         }
         tok_release(prev);
+        if(t->type == TUNDEF)
+            errorf(t->pos.name, t->pos.row, t->pos.col, "token %s is undefined", print_token(t));
     } while(rf_close());
+    tok_release(t);
+    
     printf("\n");
 
     pr_shutdown();
